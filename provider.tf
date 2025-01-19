@@ -5,7 +5,24 @@ provider "aws" {
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 }
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+  
+}
+resource "aws_route_table" "public_route_table" {
+  vpc_id = aws_vpc.main.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+  
 
+}
+resource "aws_route_table_association" "public_route_association" {
+  subnet_id = aws_subnet.subnet.id
+  route_table_id = aws_route_table.public_route_table.id
+  
+}
 resource "aws_subnet" "subnet" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
@@ -23,6 +40,12 @@ resource "aws_security_group" "allow_http" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress  {
+    from_port = 22
+    to_port = 22
+    protocol = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -49,7 +72,7 @@ resource "aws_instance" "nextjs_instance" {
   instance_type = "t2.micro"
   subnet_id     = aws_subnet.subnet.id
   security_groups = [aws_security_group.allow_http.id]
-  
+  key_name = "newswapkey"
 
 
   user_data = <<-EOF
@@ -79,5 +102,7 @@ resource "aws_instance" "nextjs_instance" {
     Name = "NextjsApp"
   }
 }
-
-
+output "ec2_public_ip" {
+  value = aws_instance.nextjs_instance.public_ip
+  
+}
