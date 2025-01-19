@@ -96,6 +96,10 @@ resource "aws_instance" "nextjs_instance" {
               }
               EOL
               systemctl enable nginx
+              git clone https://github.com/swapnil0651/cloudinfra.git /homr/ec2-user/app
+              cd /homr/ec2-user/app/frontend
+              sudo docker build -t nextjs .
+              sudo docker run -d -p 3000:3000 nextjs
               EOF
 
   tags = {
