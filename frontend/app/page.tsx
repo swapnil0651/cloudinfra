@@ -1,7 +1,6 @@
 "use client";
 import { useUser } from "@clerk/nextjs";
 import {
-  ClerkProvider,
   SignInButton,
   SignedIn,
   SignedOut,
@@ -9,7 +8,7 @@ import {
 } from "@clerk/nextjs";
 
 export default function Home() {
-  const { isSignedIn, user } = useUser();
+  const {  user } = useUser();
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-blue-500 to-purple-600 p-8 text-white font-[family-name:var(--font-geist-sans)]">
