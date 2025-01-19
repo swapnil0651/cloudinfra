@@ -45,11 +45,12 @@ jobs:
         
         id: get_ip
         run: |
-          echo "instance_ip=$(terraform output -raw ec2_public_ip)" >> $GITHUB_OUTPUT
+          INSTANCE_IP=$(terraform output -raw ec2_public_ip)
+          echo "instance_ip=$(terraform output -raw ec2_public_ip)" >> $GITHUB_ENV
+        shell: bash
+        
 
-      ## 6. Set IP as Environment Variable
-      - name: Set IP Environment Variable
-        run: echo "INSTANCE_IP=${{ steps.get_ip.outputs.ec2_public_ip }}" >> $GITHUB_ENV
+      
 
       ## 7. Set Up Docker
       - name: Set Up Docker
