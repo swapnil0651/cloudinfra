@@ -1,0 +1,79 @@
+name: CI/CD Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main # Trigger on push to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout Repository
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      # Terraform Init
+      - name: Terraform Init
+        run: terraform init
+
+      # Terraform Apply
+      - name: Terraform Apply
+        id: terraform
+        run: terraform apply -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # Fetch Terraform Outputs
+      - name: Get Terraform Outputs
+        id: tf_output
+        run: |
+          echo "EC2_PUBLIC_IP=$(terraform output -raw ec2_public_ip)" >> $GITHUB_ENV
+
+      # Build Docker Image
+      - name: Build Docker Image
+        run: |
+          docker build -t my-app:latest ./frontend
+
+      # Save Docker Image to TAR
+      - name: Save Docker Image
+        run: |
+          docker save my-app:latest > my-app.tar
+
+      # Copy Docker Image to EC2
+      - name: Copy Docker Image to EC2
+        env:
+          EC2_IP: ${{ env.EC2_PUBLIC_IP }}
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
+          chmod 600 key.pem
+          scp -o StrictHostKeyChecking=no -i key.pem my-app.tar ${{ secrets.EC2_USER }}@$EC2_IP:/tmp/my-app.tar
+
+      # SSH and Deploy Application
+      - name: Deploy Dockerized Application on EC2
+        env:
+          EC2_IP: ${{ env.EC2_PUBLIC_IP }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i key.pem ${{ secrets.EC2_USER }}@$EC2_IP << EOF
+            # Install Docker if not already installed
+            sudo yum update -y
+            sudo amazon-linux-extras enable docker
+            sudo yum install -y docker
+            sudo service docker start
+
+            # Load and Run Docker Image
+            sudo docker load < /tmp/my-app.tar
+            sudo docker run -d -p 3000:3000 my-app:latest
+          EOF
+
+      # Clean up SSH Key
+      - name: Clean Up
+        run: rm -f key.pem
