@@ -27,12 +27,12 @@ jobs:
 
       ## 3. Terraform Init
       - name: Terraform Init
-        working-directory: ./terraform  # Path to your Terraform configs
+        
         run: terraform init
 
       ## 4. Terraform Apply
       - name: Terraform Apply
-        working-directory: ./terraform
+        
         run: terraform apply -auto-approve
         env:
           # Replace with your cloud provider's credentials
@@ -42,7 +42,7 @@ jobs:
 
       ## 5. Retrieve Instance IP from Terraform Output
       - name: Get Instance IP
-        working-directory: ./terraform
+        
         id: get_ip
         run: |
           echo "instance_ip=$(terraform output -raw ec2_public_ip)" >> $GITHUB_OUTPUT
