@@ -78,13 +78,13 @@ resource "aws_instance" "nextjs_instance" {
   user_data = <<-EOF
               #!/bin/bash
               # Install Nginx and Docker
-              yum update -y
+              sudo yum update -y
               amazon-linux-extras enable docker
-              yum install -y docker nginx
-              service docker start
-              service nginx start
+              sudo yum install -y docker nginx git
+              sudo service docker start
+              sudo service nginx start
               # Set up Nginx reverse proxy
-              cat > /etc/nginx/conf.d/default.conf <<EOL
+              sudo cat > /etc/nginx/conf.d/default.conf <<EOL
               server {
                   listen 80;
                   location / {
@@ -95,8 +95,9 @@ resource "aws_instance" "nextjs_instance" {
                   }
               }
               EOL
-              systemctl enable nginx
-              git clone https://github.com/swapnil0651/cloudinfra.git /homr/ec2-user/app
+              sudo systemctl enable nginx
+              
+              sudo git clone https://github.com/swapnil0651/cloudinfra.git /homr/ec2-user/app
               cd /homr/ec2-user/app/frontend
               sudo docker build -t nextjs .
               sudo docker run -d -p 3000:3000 nextjs
