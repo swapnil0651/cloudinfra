@@ -1,86 +1,105 @@
-name: CI/CD Deploy to EC2
+name: CI/CD Pipeline for Next.js Deployment
 
+# Trigger the workflow on pushes to the main branch
 on:
   push:
     branches:
-      - main # Trigger on push to the main branch
+      - main
 
 jobs:
-  deploy:
+  build_and_deploy:
     runs-on: ubuntu-latest
 
+    env:
+      IMAGE_NAME: frontend  # Name of your Docker image
+      DOCKER_IMAGE_TAR: frontend.tar  # Docker image tar file name
+
     steps:
-      # Step 1: Checkout Repository
+      ## 1. Checkout the Repository
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      # Step 2: Cache Terraform Plugins and Modules
-      - name: Cache Terraform Plugins and Modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            .terraform
-            .terraform.lock.hcl
-          key: ${{ runner.os }}-terraform-${{ hashFiles('/*.tf') }}
-
-      # Step 3: Setup Terraform
-      - name: Setup Terraform
+      ## 2. Set Up Terraform
+      - name: Set Up Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.5.0
+          terraform_version: '1.5.0'  # Specify your Terraform version
 
-      # Step 4: Initialize Terraform
+      ## 3. Terraform Init
       - name: Terraform Init
+        working-directory: ./terraform  # Path to your Terraform configs
         run: terraform init
 
-      # Step 5: Apply Terraform Configuration
+      ## 4. Terraform Apply
       - name: Terraform Apply
-        id: terraform
+        working-directory: ./terraform
         run: terraform apply -auto-approve
         env:
+          # Replace with your cloud provider's credentials
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          # Add other required environment variables for Terraform here
 
-      # Step 6: Get Terraform Outputs (fixed)
-      - name: Get Terraform Outputs
-        id: tf_output
+      ## 5. Retrieve Instance IP from Terraform Output
+      - name: Get Instance IP
+        working-directory: ./terraform
+        id: get_ip
         run: |
-          IP=$(terraform output -raw ec2_public_ip 2>/dev/null | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}')  # Extract valid IP
-          echo "EC2_PUBLIC_IP=$IP" >> $GITHUB_ENV
-        shell: bash
+          echo "instance_ip=$(terraform output -raw ec2_public_ip)" >> $GITHUB_OUTPUT
 
-      # Step 7: Build Docker Image (from frontend directory)
+      ## 6. Set IP as Environment Variable
+      - name: Set IP Environment Variable
+        run: echo "INSTANCE_IP=${{ steps.get_ip.outputs.ec2_public_ip }}" >> $GITHUB_ENV
+
+      ## 7. Set Up Docker
+      - name: Set Up Docker
+        uses: docker/setup-buildx-action@v3
+
+      ## 8. Build Docker Image
       - name: Build Docker Image
         run: |
-          docker build -t my-app:latest ./frontend
+          docker build -t $IMAGE_NAME:latest ./frontend
 
-      # Step 8: Save Docker Image to TAR
+      ## 9. Save Docker Image as Tar File
       - name: Save Docker Image
         run: |
-          docker save my-app:latest > my-app.tar
+          docker save $IMAGE_NAME:latest -o $DOCKER_IMAGE_TAR
 
-      # Step 9: Copy Docker Image to EC2
-      - name: Copy Docker Image to EC2
-        run: |
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
-          chmod 600 key.pem
-          scp -o StrictHostKeyChecking=no -i key.pem my-app.tar ${{ secrets.EC2_USER }}@${{ env.EC2_PUBLIC_IP }}:/tmp/my-app.tar
+      ## 10. Transfer Docker Image to EC2 via SCP
+      - name: Transfer Docker Image to EC2
+        uses: appleboy/scp-action@v0.1.3
+        with:
+          host: ${{ env.INSTANCE_IP }}
+          username: ${{ secrets.SSH_USERNAME }}          # SSH username for your server (e.g., ubuntu)
+          key: ${{ secrets.SSH_PRIVATE_KEY }}           # SSH Private Key (PEM format)
+          port: 22                                       # SSH port, usually 22
+          source: $DOCKER_IMAGE_TAR                      # Source file to transfer
+          target: /home/${{ secrets.SSH_USERNAME }}/   # Destination path on EC2
 
-      # Step 10: SSH and Deploy Application
-      - name: Deploy Dockerized Application on EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i key.pem ${{ secrets.EC2_USER }}@${{ env.EC2_PUBLIC_IP }} << EOF
-            # Install Docker if not already installed
-            sudo yum update -y
-            sudo amazon-linux-extras enable docker
-            sudo yum install -y docker
-            sudo service docker start
+      ## 11. Deploy Docker Image on EC2 via SSH
+      - name: Deploy Docker Image on EC2
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ env.INSTANCE_IP }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            # Navigate to home directory
+            cd /home/${{ secrets.SSH_USERNAME }}/
 
-            # Load and Run Docker Image
-            sudo docker load < /tmp/my-app.tar
-            sudo docker run -d -p 3000:3000 my-app:latest
-          EOF
+            # Load Docker image from tar
+            docker load -i $DOCKER_IMAGE_TAR
 
-      # Step 11: Clean up SSH Key
-      - name: Clean Up
-        run: rm -f key.pem
+            # Remove the tar file to save space
+            rm $DOCKER_IMAGE_TAR
+
+            # Stop and remove existing container if it exists
+            docker stop ${IMAGE_NAME}-container || true
+            docker rm ${IMAGE_NAME}-container || true
+
+            # Run the new Docker container
+            docker run -d \
+              --name ${IMAGE_NAME}-container \
+              -p 80:3000 \  # Adjust ports as needed
+              $IMAGE_NAME:latest
