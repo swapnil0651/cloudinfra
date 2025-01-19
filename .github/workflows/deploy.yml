@@ -10,21 +10,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout Repository
+      # Step 1: Checkout Repository
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      # Setup Terraform
+      # Step 2: Cache Terraform Plugins and Modules
+      - name: Cache Terraform Plugins and Modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            .terraform
+            .terraform.lock.hcl
+          key: ${{ runner.os }}-terraform-${{ hashFiles('/*.tf') }}
+
+      # Step 3: Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
 
-      # Terraform Init
+      # Step 4: Initialize Terraform
       - name: Terraform Init
         run: terraform init
 
-      # Terraform Apply
+      # Step 5: Apply Terraform Configuration
       - name: Terraform Apply
         id: terraform
         run: terraform apply -auto-approve
@@ -32,23 +41,24 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      # Fetch Terraform Outputs
+      # Step 6: Get Terraform Outputs
       - name: Get Terraform Outputs
         id: tf_output
         run: |
-          echo "EC2_PUBLIC_IP=$(terraform output -raw ec2_public_ip)" >> $GITHUB_ENV
+          IP=$(terraform output -raw ec2_public_ip 2>/dev/null)
+          echo "EC2_PUBLIC_IP=$IP" >> $GITHUB_ENV
 
-      # Build Docker Image
+      # Step 7: Build Docker Image (from frontend directory)
       - name: Build Docker Image
         run: |
           docker build -t my-app:latest ./frontend
 
-      # Save Docker Image to TAR
+      # Step 8: Save Docker Image to TAR
       - name: Save Docker Image
         run: |
           docker save my-app:latest > my-app.tar
 
-      # Copy Docker Image to EC2
+      # Step 9: Copy Docker Image to EC2
       - name: Copy Docker Image to EC2
         env:
           EC2_IP: ${{ env.EC2_PUBLIC_IP }}
@@ -57,7 +67,7 @@ jobs:
           chmod 600 key.pem
           scp -o StrictHostKeyChecking=no -i key.pem my-app.tar ${{ secrets.EC2_USER }}@$EC2_IP:/tmp/my-app.tar
 
-      # SSH and Deploy Application
+      # Step 10: SSH and Deploy Application
       - name: Deploy Dockerized Application on EC2
         env:
           EC2_IP: ${{ env.EC2_PUBLIC_IP }}
@@ -74,6 +84,6 @@ jobs:
             sudo docker run -d -p 3000:3000 my-app:latest
           EOF
 
-      # Clean up SSH Key
+      # Step 11: Clean up SSH Key
       - name: Clean Up
         run: rm -f key.pem
