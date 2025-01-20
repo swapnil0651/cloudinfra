@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+  # Allow manual triggering for the delete job
+  workflow_dispatch:
+
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
@@ -27,17 +30,37 @@ jobs:
 
       ## 3. Terraform Init
       - name: Terraform Init
-        
         run: terraform init
 
       ## 4. Terraform Apply
       - name: Terraform Apply
-        
         run: terraform apply -auto-approve
         env:
-          # Replace with your cloud provider's credentials
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          # Add other required environment variables for Terraform here
 
-    
+  delete_instance:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' }}  # Only trigger on manual request
+
+    steps:
+      ## 1. Checkout the Repository
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      ## 2. Set Up Terraform
+      - name: Set Up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: '1.5.0'
+
+      ## 3. Terraform Init
+      - name: Terraform Init
+        run: terraform init
+
+      ## 4. Terraform Destroy (Including VPC)
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

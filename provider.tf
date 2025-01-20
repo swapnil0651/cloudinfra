@@ -98,7 +98,7 @@ resource "aws_instance" "nextjs_instance" {
               sudo systemctl enable nginx
               
               sudo git clone https://github.com/swapnil0651/cloudinfra.git /home/ec2-user/app
-              cd /home/ec2-user/app/frontend
+              cd /hom/ec2-user/app/frontend
               sudo docker build -t nextjs .
               sudo docker run -d -p 3000:3000 nextjs
               EOF
