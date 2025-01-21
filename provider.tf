@@ -1,5 +1,5 @@
 provider "aws" {
-  region = "us-east-1" # Choose your preferred region
+  region = "ap-south-1" # Choose your preferred region
 }
 
 resource "aws_vpc" "main" {
@@ -21,7 +21,7 @@ resource "aws_route_table" "public_route_table" {
 resource "aws_subnet" "subnet" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = "us-east-1a"
+  availability_zone       = "ap-south-1a"
   map_public_ip_on_launch = true
   tags = {
     Name = "Mysn"
@@ -71,15 +71,15 @@ resource "aws_security_group" "allow_http" {
 }
 
 resource "aws_instance" "nextjs_instance" {
-  ami           = "ami-0df8c184d5f6ae949" # Amazon Linux 2
+  ami           = "ami-00bb6a80f01f03502" # Ubuntu
   instance_type = "t2.micro"
   subnet_id     = aws_subnet.subnet.id
   security_groups = [aws_security_group.allow_http.id]
-  key_name      = "newswapkey"
+  key_name      = "mykey"
 
   user_data = <<-EOF
   #!/bin/bash
-  curl -s https://gist.githubusercontent.com/swapnil0651/2601df1936374dcf4475a5e2030eaebb/raw/be45c639cdafefb7c8fe5b1643406e9ed6978242/setup.sh | bash
+  curl -s https://gist.githubusercontent.com/swapnil0651/8482bf8ce78d243869144e76927e0e3a/raw/5f4a41341b461f53b94bce346868449e3cf05d2a/ubuntusetup.sh | bash
 EOF
 
 
