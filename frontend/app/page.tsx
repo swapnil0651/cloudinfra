@@ -1,7 +1,7 @@
 export default function App() {
   const data = {
     name: "Swapnil",
-    imageUrl: "https://myimg2.s3.ap-south-1.amazonaws.com/Screenshot+2023-10-12+105127.png",
+    imageUrl: "https://myimg1.s3.ap-south-1.amazonaws.com/Screenshot+(18).png",
     altText: "Greeting Image"
   };
 
